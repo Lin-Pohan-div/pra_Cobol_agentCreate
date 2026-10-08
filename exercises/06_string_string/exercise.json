@@ -1,0 +1,6 @@
+{
+  "name": "字串串接",
+  "difficulty": "★★",
+  "topics": ["STRING", "DELIMITED BY", "WITH POINTER", "ON OVERFLOW"],
+  "hint": "STRING 把幾個字串依序搬進目標欄位，寫法是 STRING 來源… DELIMITED BY … INTO 目標 [WITH POINTER 指標] [ON OVERFLOW 處理] END-STRING。\nDELIMITED BY SIZE 會把來源欄位「整個」搬過去，包含 PIC X 右邊補的空白；所以 \"Amy\" 放在 PIC X(6) 其實是 \"Amy   \"，串接時空白也被帶進去。要嘛先用 FUNCTION TRIM，要嘛用 DELIMITED BY \" \" 遇到空白就停。\nWITH POINTER 會把「下一個字要寫的位置」記在指標欄位裡（COBOL 的位置從 1 開始），執行完不會自己重設；要用它「繼續接在後面」，就得把指標設成上一段寫完之後的位置，設成 1 會從頭把前面的字蓋掉。\n目標欄位不夠長時，寫出不去的部分會被丟棄並跳到 ON OVERFLOW；沒寫 ON OVERFLOW 就什麼都不會發生，很容易誤以為字串接對了。"
+}

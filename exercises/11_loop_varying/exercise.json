@@ -1,0 +1,6 @@
+{
+  "name": "計數迴圈",
+  "difficulty": "★★",
+  "topics": ["PERFORM VARYING", "OCCURS", "表格", "迴圈"],
+  "hint": "PERFORM VARYING 計數器 FROM 起始 BY 步長 UNTIL 條件 的條件是「成立就停」，所以要走 1 到 5 要寫 UNTIL 計數器 > 5，這樣剛好跑 5 次。\nOCCURS 定義的表格要用括號取用某一格：名稱 (索引)，索引可以就是迴圈的計數器。\n累加前務必先把累加變數清成 0，否則會把上一輪的殘值一起算進去。\n判斷奇偶可以用 DIVIDE ... GIVING ... REMAINDER 餘數變數，餘數等於 0 就是偶數。"
+}

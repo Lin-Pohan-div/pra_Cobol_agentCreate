@@ -1,0 +1,6 @@
+{
+  "name": "執行期錯誤",
+  "difficulty": "★★★",
+  "topics": ["執行期錯誤", "SUBSCRIPT OUT OF RANGE", "DIVIDE BY ZERO", "ON SIZE ERROR"],
+  "hint": "COBOL 遇到這兩種情況會直接中斷程式並印出錯誤訊息：下標超出 OCCURS 範圍（SUBSCRIPT OUT OF RANGE）、除數為零（DIVIDE BY ZERO）。\n算術結果「放不下欄位」則不會中斷，接收欄位會維持原本的值、也不會有任何訊息，要自己用 COMPUTE ... ON SIZE ERROR ... END-COMPUTE 才知道發生了溢位。\n正確的寫法是「先檢查、再運算」：除之前先看分母是不是 0，取用表格之前先把下標夾在 1 到 OCCURS 次數之間。\n這個檔案裡 SAFE-AVERAGE 與 SAFE-PICK 一開始會中斷、SAFE-SCORE 會算出錯誤的值，請補上檢查與處理；CRASH-* 段落是示範用的，請不要動它。\n除法記得寫 DIVIDE 被除數 BY 除數 GIVING 結果 ROUNDED，這個形式的意思最不會搞混。"
+}

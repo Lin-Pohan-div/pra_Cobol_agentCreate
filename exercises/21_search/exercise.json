@@ -1,0 +1,6 @@
+{
+  "name": "查表",
+  "difficulty": "★★",
+  "topics": ["OCCURS", "SEARCH", "88 條件名稱"],
+  "hint": "OCCURS n TIMES 會讓一筆資料變成 n 個副本，存取時要寫「表格名(第幾筆)」或「子項目(第幾筆)」，而且下標從 1 開始。\nSEARCH 要搭配 VARYING 索引 FROM 起始 BY 步數 UNTIL 界限，SEARCH 才會幫你把索引一路推進去；少了 VARYING，索引會停在原值。\n88 條件名稱是掛在某個欄位下面的別名，只能對「沒有下標」的那個欄位做測試，所以先把表格裡的值搬到一個普通欄位，再寫 IF 那個欄位 IS-條件名稱。\n88 也可以寫範圍，例如 88 IS-BIG VALUE 101 THROUGH 999。"
+}

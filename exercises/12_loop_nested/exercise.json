@@ -1,0 +1,6 @@
+{
+  "name": "巢狀迴圈",
+  "difficulty": "★★★",
+  "topics": ["PERFORM VARYING", "AFTER", "巢狀迴圈"],
+  "hint": "巢狀迴圈寫在同一個 PERFORM 裡：VARYING 外層 FROM .. BY .. UNTIL .. 之後接 AFTER 內層 FROM .. BY .. UNTIL ..，迴圈體寫在最後，整個結構只有一個 END-PERFORM。\nAFTER 內層每換一次外層就會從 FROM 重新開始一次，所以 3 列 4 欄剛好跑 3 * 4 = 12 次。\n兩層的終止條件同樣是「成立就停」，所以 1 到 3 要寫 > 3、1 到 4 要寫 > 4。\n迴圈體裡可以自由使用 WS-ROW 與 WS-COL 做運算；只挑部分格子時，把條件寫 IF ... THEN 放進迴圈體，不要去改內層的範圍。"
+}

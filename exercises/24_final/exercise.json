@@ -1,0 +1,6 @@
+{
+  "name": "綜合演練",
+  "difficulty": "★★★★",
+  "topics": ["UNSTRING", "SEARCH", "ROUNDED", "ON SIZE ERROR", "順序檔"],
+  "hint": "先想清楚資料流：order.dat 每行的格式是「代號,數量」，先用 UNSTRING 拆開，再用 SEARCH 到商品表查單價，最後單價 × 數量加總。\nUNSTRING 的 INTO 清單要用逗號隔開，每個目標後面都要再寫一次 DELIMITED BY \"...\"。\nSEARCH 一定要搭配 VARYING 索引 FROM 起始 BY 步數 UNTIL 界限，索引才會一路前進，否則用索引取資料會出錯。\n單價乘數量可能超過欄位容量，請用 COMPUTE ... ON SIZE ERROR ... END-COMPUTE 夾住；除法要四捨五入請在 GIVING 的欄位後面加 ROUNDED。\n寫檔後一定要 CLOSE，檔案才會真正落地；讀檔一定要處理 AT END。"
+}

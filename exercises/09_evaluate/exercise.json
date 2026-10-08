@@ -1,0 +1,6 @@
+{
+  "name": "多分支選擇",
+  "difficulty": "★",
+  "topics": ["EVALUATE", "WHEN", "WHEN OTHER"],
+  "hint": "EVALUATE 主題 WHEN 條件 ... WHEN OTHER ... END-EVALUATE 會從上往下找「第一個」符合的 WHEN，找到就執行那一段、然後馬上結束。\n所以 WHEN 的順序很重要：數字範圍要由嚴到鬆排（先 >= 90 再 >= 80），否則寬鬆的條件會先把所有情況攔截掉。\n每個 WHEN 區塊裡可以放很多敘述，區塊之間不需要句點，END-EVALUATE 才收尾。\nWHEN OTHER 負責「以上都不符合」的情況，通常一定要寫；漏掉的話沒有任何分支符合時就什麼都不做，變數會保留舊值。"
+}

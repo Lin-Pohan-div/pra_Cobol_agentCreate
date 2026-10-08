@@ -1,0 +1,6 @@
+{
+  "name": "段落結構",
+  "difficulty": "★★",
+  "topics": ["段落", "PERFORM", "THROUGH"],
+  "hint": "段落可以當 subroutine 用：PERFORM 段落名 就是執行那一段。\nPERFORM 一段只會執行那一段，執行完就回到呼叫的地方，不會繼續往下跑後面的段落；段落結尾常寫 EXIT. 當作明確的終點。\nPERFORM A THRU B 會把 A 到 B 之間的段落「依序全部執行」；它適合流水作業，但如果你只想跳過中間某一段，就不能把範圍設太大。"
+}

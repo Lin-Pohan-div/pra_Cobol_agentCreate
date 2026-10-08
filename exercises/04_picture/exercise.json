@@ -1,0 +1,6 @@
+{
+  "name": "PICTURE 與位數",
+  "difficulty": "★★",
+  "topics": ["PICTURE", "截斷", "SIZE ERROR", "ROUNDED"],
+  "hint": "PICTURE 決定欄位最多能裝幾個字／幾個數字，裝不下就會被截掉：數字欄位丟掉「高位」的數字（12345 放進 PIC 9(3) 會變成 345），文字欄位丟掉「右邊」的字（\"Coblings\" 放進 PIC X(5) 會變成 \"Cobli\"）。\n所以 MOVE 之前要自己算好位數，寧可把 PICTURE 改大一點。\n另外，算術運算（COMPUTE / ADD …）放不下時不會直接讓程式壞掉，而是跳到 ON SIZE ERROR 那一段；沒寫 ON SIZE ERROR 時目標欄位會保持原值。\n小數預設是「截斷」不是四捨五入：12.567 放進 PIC 9(3)V99 會變成 12.56，要四捨五入才寫 ROUNDED。"
+}

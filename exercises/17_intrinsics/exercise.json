@@ -1,0 +1,6 @@
+{
+  "name": "內建函式",
+  "difficulty": "★★",
+  "topics": ["內建函式", "FUNCTION", "字串"],
+  "hint": "內建函式寫成 FUNCTION 名字(引數)，最常見的是 LENGTH、TRIM、UPPER-CASE、NUMVAL。\nFUNCTION LENGTH(欄位) 回傳的是「欄位長度」，不是字串去掉空白後的長度——想量實際內容要先 TRIM。\nFUNCTION MOD(a, b) 是 a 除以 b 的餘數；MAX / MIN 可以同時比較好幾個值。\n文字欄位靠左對齊、多的字丟右邊，所以產生字串時通常要配合 MOVE SPACES 與固定長度的欄位。"
+}

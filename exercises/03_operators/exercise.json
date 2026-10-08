@@ -1,0 +1,6 @@
+{
+  "name": "四則運算",
+  "difficulty": "★",
+  "topics": ["ADD", "SUBTRACT", "MULTIPLY", "DIVIDE"],
+  "hint": "四則運算的關鍵是「誰是結果」：ADD x TO y 是把 x 加到 y（y 會被改掉）；SUBTRACT a FROM b 是 b 減 a，結果寫回 b。\nMULTIPLY a BY b 與 DIVIDE a BY b 如果沒有 GIVING，結果會寫回 BY 右邊的那個欄位，原本的數值就不見了；要保留原值就加 GIVING。\nDIVIDE 的 INTO 與 BY 方向相反：DIVIDE 6 INTO 100 是拿 6 除 100（0.06），DIVIDE 100 BY 6 才是 100 除以 6。\n結果放進欄位時預設是「截斷」；要四捨五入就在 GIVING 的目標欄位後面加 ROUNDED（記得用句點收尾）。"
+}

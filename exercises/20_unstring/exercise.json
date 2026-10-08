@@ -1,0 +1,6 @@
+{
+  "name": "字串拆解",
+  "difficulty": "★★",
+  "topics": ["UNSTRING", "DELIMITED BY", "文字欄位"],
+  "hint": "UNSTRING 的來源欄位後面要寫 DELIMITED BY \"分隔字元\"，代表看到這個字元就切一刀。\nINTO 後面的每一個目標項目之間要加逗號，而且每個目標後面都要再寫一次自己的 DELIMITED BY \"...\"。\nDELIMITED BY SIZE 的意思是「用到整個欄位都不切」，所以第一個目標會拿到整串原文，這是本題最常見的錯誤。\n切出來的欄位是靠左對齊、沒用到的字元補右邊空白，所以比對時記得用同樣的長度。"
+}

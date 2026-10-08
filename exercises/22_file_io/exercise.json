@@ -1,0 +1,6 @@
+{
+  "name": "順序檔案",
+  "difficulty": "★★★",
+  "topics": ["SELECT", "FD", "OPEN", "WRITE", "READ", "CLOSE"],
+  "hint": "OPEN / CLOSE / READ / WRITE 這些敘述後面記得加句點，因為它們不像其他敘述會自動斷句。\n資料在 CLOSE 的時候才會真正寫到磁碟；OPEN OUTPUT 會先把檔案清空，之後 WRITE 的紀錄會照順序追加。\n讀檔案時一定要處理 AT END：檔案讀完之後再執行 READ 會直接讓程式出錯，所以要用 AT END MOVE \"Y\" TO 你的結束旗標。\nCLOSE 之後檔案會留在題目資料夾裡，檢查器最後會把它清空，不用擔心。"
+}

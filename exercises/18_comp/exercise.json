@@ -1,0 +1,6 @@
+{
+  "name": "數字儲存",
+  "difficulty": "★★★",
+  "topics": ["COMP", "COMP-3", "INDEX", "SET"],
+  "hint": "COMP / COMP-3 / BINARY 改變的只是「存法」，數值語意和 DISPLAY 一樣，所以斷言時值是一樣的。\nUSAGE INDEX 是專門給表格下標用的欄位：用 SET 索引 TO 值 設定位置，之後用 名稱(索引) 存取。\n注意 SET 只能設定一個值，沒有「SET 索引 + 1」這種寫法，要用 COMPUTE 索引 = 索引 + 1。\n數字欄位放不下會被截斷（例如 PIC 9(3) 放 1234 會變 234），要捨入請寫 ROUNDED。"
+}

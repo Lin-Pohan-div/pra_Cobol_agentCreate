@@ -1,0 +1,31 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# 建置產物與建置標記
+build/
+
+# 練習進度與備份
+.coblings/
+
+# 每題的產物目錄
+**/.coblings-out/
+
+# 22_file_io / 24_final 練習會真的寫出來的資料檔
+exercises/22_file_io/ledger.dat
+exercises/24_final/order.dat
+ledger.dat
+order.dat
+
+# 打包產物
+dist/
+*.pyz
+
+# 編輯器
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# 文件
+docs/

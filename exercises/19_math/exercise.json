@@ -1,0 +1,6 @@
+{
+  "name": "捨入與溢位",
+  "difficulty": "★★",
+  "topics": ["ROUNDED", "ON SIZE ERROR", "DIVIDE BY ZERO"],
+  "hint": "數字欄位放不下小數位時，預設是「直接砍掉」：100.00 除以 7 會變成 14.28。要四捨五入成 14.29，必須寫成 DIVIDE ... GIVING WS-SHARE ROUNDED。\n除數為零不是「結果為零」，而是直接讓程式出錯（DIVIDE BY ZERO），所以務必先用 IF 判斷除數。\n運算結果超出接收欄位容量時（例如 1300 塞進 PIC 9(3)），要寫 COMPUTE ... ON SIZE ERROR ... END-COMPUTE，把處理程式放在 ON SIZE ERROR 與 END-COMPUTE 之間。"
+}

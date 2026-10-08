@@ -1,0 +1,6 @@
+{
+  "name": "檢查與取代",
+  "difficulty": "★",
+  "topics": ["INSPECT", "TALLYING", "REPLACING", "CONVERTING"],
+  "hint": "TALLYING 的寫法是 INSPECT 目標 TALLYING 計數器 FOR ALL \"要數的字串\"，出現次數會存進計數器。\nREPLACING 後面一定要寫 ALL、LEADING 或 FIRST：ALL 取代全部；LEADING 只取代「開頭連續」的那幾個，中間出現的一律不動；FIRST 只取代第一個。\nCONVERTING 的寫法是 INSPECT 目標 CONVERTING \"要找的字元們\" TO \"換成的字元們\"，兩個字串一樣長、同一個位置的字元兩兩成對。\n例如 CONVERTING \"abc\" TO \"xyz\" 表示 a 換成 x、b 換成 y、c 換成 z，而且所有對照同時生效。只有 TALLYING 不會改動原字串，REPLACING 與 CONVERTING 才會就地修改。"
+}

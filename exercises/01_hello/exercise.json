@@ -1,0 +1,6 @@
+{
+  "name": "打招呼",
+  "difficulty": "★",
+  "topics": ["段落", "字串", "STRING"],
+  "hint": "COBOL 的程式是由一個一個段落組成，用 PERFORM 呼叫某個段落就會執行它。\n文字欄位（PIC X）靠左對齊，不夠長時右邊補空白。\nSTRING 可以把多個字串接起來：每個來源後面接 DELIMITED BY SIZE 代表用到整個欄位，DELIMITED BY \" \" 代表遇到空白就停。"
+}

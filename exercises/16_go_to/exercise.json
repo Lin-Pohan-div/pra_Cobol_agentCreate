@@ -1,0 +1,6 @@
+{
+  "name": "GO TO 分派",
+  "difficulty": "★★",
+  "topics": ["GO TO", "DEPENDING ON", "EXIT"],
+  "hint": "GO TO 段落名 會立刻跳到那一段，中間的敘述全部略過。\nGO TO … DEPENDING ON 依「值」決定跳到第幾個目標：1 跳第一個、2 跳第二個……超出範圍就哪裡都不跳，直接往下繼續執行。\n跳過去之後要記得用 GO TO 跳回來（或讓最後一段是 EXIT.），否則會一路「落跑」到後面的段落。"
+}

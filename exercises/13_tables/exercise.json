@@ -1,0 +1,6 @@
+{
+  "name": "價格表格",
+  "difficulty": "★★",
+  "topics": ["表格", "OCCURS", "下標"],
+  "hint": "OCCURS n TIMES 會一次準備 n 個欄位，用「名稱(下標)」存取：下標從 1 開始。\n搭配 DEPENDING ON 時，表格實際長度由那個欄位決定，超過長度就會出現 SUBSCRIPT OUT OF RANGE。\n迴圈用 PERFORM VARYING i FROM 1 BY 1 UNTIL i > 個數 剛好會跑「個數」次；如果寫成 UNTIL i >= 個數 就會少算一筆。"
+}
