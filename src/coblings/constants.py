@@ -28,6 +28,9 @@ TEST_TIMEOUT_SECONDS = 10
 # run 監看模式的輪詢間隔（秒）
 WATCH_POLL_SECONDS = 1.0
 
+# run 啟動時重新掃描進度，最多同時檢查幾題
+SCAN_WORKERS = min(8, os.cpu_count() or 1)
+
 # 產物目錄：runner 子行程把 display.txt／result.txt 寫在題目資料夾的這個子目錄
 ARTIFACT_DIRNAME = ".coblings-out"
 

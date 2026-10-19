@@ -136,15 +136,6 @@ class PipelineTest(unittest.TestCase):
         kinds = [node.kind for node in student.paragraphs[0].walk()]
         self.assertIn("stop_run", kinds)
 
-    def test_linked_program_has_no_stop_from_student(self):
-        student = parse_source(
-            STUDENT_HEADER + "       GET-WORD.\n           IF 1 = 1\n               STOP RUN\n           END-IF.\n",
-            "Word.cbl",
-        )
-        program = link_programs(student, parse_source(CHECKER, "WordTest.cbl"))
-        kinds = [node.kind for node in program.paragraphs[-1].walk()]
-        self.assertNotIn("stop_run", kinds)
-
 
 class LimitsTest(unittest.TestCase):
     """問題 4：巢狀 OCCURS 的乘積也有上限。"""

@@ -88,44 +88,73 @@ def check_original(exercise_id: str, directory: str, source: str, failures: list
         failures.append(f"{exercise_id} (與原題不一致)")
 
 
+def stage_exercise(exercise_id: str, stage_exercises: str, source_from: str) -> str | None:
+    """把一題的題目檔複製到暫存區，學生檔改用 ``source_from``；回傳暫存資料夾。"""
+    directory = os.path.join(EXERCISES, exercise_id)
+    sources, checkers = classify(directory)
+    if len(sources) != 1 or len(checkers) != 1:
+        return None
+    destination = os.path.join(stage_exercises, exercise_id)
+    os.makedirs(destination, exist_ok=True)
+    shutil.copy2(os.path.join(directory, "exercise.json"), destination)
+    shutil.copy2(checkers[0], destination)
+    # expected.txt 也要一起帶過去，否則 DISPLAY 比對會被跳過，檢查變弱
+    expected = os.path.join(directory, "expected.txt")
+    if os.path.isfile(expected):
+        shutil.copy2(expected, destination)
+    shutil.copy2(source_from, os.path.join(destination, os.path.basename(sources[0])))
+    return destination
+
+
+def fresh_stage() -> str:
+    """清空並建立暫存的 exercises 目錄。
+
+    所有 verify 都在暫存區用 ``--dir`` 執行，進度寫在 build/selftest/.coblings，
+    不會動到出題者自己在專案根目錄的練習進度。
+    """
+    stage_exercises = os.path.join(STAGE, "exercises")
+    shutil.rmtree(STAGE, ignore_errors=True)
+    os.makedirs(stage_exercises, exist_ok=True)
+    return stage_exercises
+
+
 def check_must_fail(exercise_ids: list[str], failures: list[str]) -> None:
     print("\n== 檢查 2/3：所有題目原本都應該失敗 ==", file=sys.stderr)
-    run_cli(["reset", "--all"])
+    stage_exercises = fresh_stage()
     for exercise_id in exercise_ids:
-        code, _ = run_cli(["verify", exercise_id])
+        sources, _ = classify(os.path.join(EXERCISES, exercise_id))
+        if len(sources) != 1:
+            continue
+        # 用 .original/ 的原題，而不是可能已被改過的練習檔
+        original = os.path.join(
+            EXERCISES, exercise_id, ".original", os.path.basename(sources[0]) + ".orig"
+        )
+        if not os.path.isfile(original):
+            continue  # 檢查 1 已經回報缺原題
+        if stage_exercise(exercise_id, stage_exercises, original) is None:
+            continue
+        code, _ = run_cli(["--dir", stage_exercises, "verify", exercise_id])
         if code == 0:
             print(f"  {exercise_id} : 意外已經通過！", file=sys.stderr)
             failures.append(f"{exercise_id} (未修改就通過)")
+    shutil.rmtree(STAGE, ignore_errors=True)
 
 
 def check_solution_passes(exercise_ids: list[str], failures: list[str]) -> None:
     print("\n== 檢查 3/3：換上解答後所有題目都應該通過 ==", file=sys.stderr)
-    stage_exercises = os.path.join(STAGE, "exercises")
-    shutil.rmtree(STAGE, ignore_errors=True)
-    os.makedirs(stage_exercises, exist_ok=True)
+    stage_exercises = fresh_stage()
 
     for exercise_id in exercise_ids:
-        directory = os.path.join(EXERCISES, exercise_id)
-        sources, checkers = classify(directory)
-        if len(sources) != 1 or len(checkers) != 1:
+        sources, _ = classify(os.path.join(EXERCISES, exercise_id))
+        if len(sources) != 1:
             continue
-        destination = os.path.join(stage_exercises, exercise_id)
-        os.makedirs(destination, exist_ok=True)
-        shutil.copy2(os.path.join(directory, "exercise.json"), destination)
-        shutil.copy2(checkers[0], destination)
-        shutil.copy2(sources[0], destination)
-        # expected.txt 也要一起帶過去，否則 DISPLAY 比對會被跳過，檢查變弱
-        expected = os.path.join(directory, "expected.txt")
-        if os.path.isfile(expected):
-            shutil.copy2(expected, destination)
-
-        source_name = os.path.basename(sources[0])
-        solution = os.path.join(SOLUTIONS, exercise_id, source_name)
+        solution = os.path.join(SOLUTIONS, exercise_id, os.path.basename(sources[0]))
         if not os.path.isfile(solution):
             print(f"  {exercise_id} : 找不到解答檔 {solution}", file=sys.stderr)
             failures.append(f"{exercise_id} (缺解答)")
             continue
-        shutil.copy2(solution, os.path.join(destination, source_name))
+        if stage_exercise(exercise_id, stage_exercises, solution) is None:
+            continue
 
         code, output = run_cli(["--dir", stage_exercises, "verify", exercise_id])
         if code == 0:
@@ -136,7 +165,6 @@ def check_solution_passes(exercise_ids: list[str], failures: list[str]) -> None:
             failures.append(f"{exercise_id} (解答未通過)")
 
     shutil.rmtree(STAGE, ignore_errors=True)
-    run_cli(["reset", "--all"])
 
 
 def main() -> int:

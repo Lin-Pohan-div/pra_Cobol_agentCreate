@@ -207,10 +207,12 @@ class FlowMixin:
         self.set_reference(self.resolve(index), self.eval(from_expr))
         while True:
             self.tick()
-            if self.eval_condition(until):
+            if not test_after and self.eval_condition(until):
                 return True
             if not self._run_varying_chain(level + 1, varying, start, end, body, test_after):
                 return False
+            if test_after and self.eval_condition(until):
+                return True
             current = self.to_decimal(self.get_reference(self.resolve(index)))
             step = self.to_decimal(self.eval(by_expr))
             self.set_reference(self.resolve(index), current + step)

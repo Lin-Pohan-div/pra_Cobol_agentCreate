@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import random
 import time
-from decimal import Decimal, localcontext
+from decimal import ROUND_DOWN, Decimal, localcontext
 from typing import Callable
 
 from .. import limits
@@ -228,15 +228,23 @@ class CoreMixin:
         index = self.para_index.get(name.upper())
         if index is None:
             raise RuntimeError_(f"找不到段落 {name}")
-        try:
-            self.run_paragraph(self.paragraphs[index])
-        except ExitSectionSignal:
-            return
-        except GoToSignal as signal:
-            target = self.para_index.get(signal.target.upper())
-            if target is None:
-                raise RuntimeError_(f"GO TO 找不到段落 {signal.target}") from None
-            self.run_paragraph(self.paragraphs[target])
+        # 段落裡的 GO TO 可能一路跳好幾次，都要在這裡接住，
+        # 不能讓 GoToSignal 漏到 execute_main 改掉檢查器的主流程
+        jumps = 0
+        while True:
+            try:
+                self.run_paragraph(self.paragraphs[index])
+                return
+            except ExitSectionSignal:
+                return
+            except GoToSignal as signal:
+                jumps += 1
+                if jumps > limits.MAX_PARAGRAPH_JUMPS:
+                    raise RuntimeError_("程式陷入迴圈：段落跳轉次數過多") from None
+                target = self.para_index.get(signal.target.upper())
+                if target is None:
+                    raise RuntimeError_(f"GO TO 找不到段落 {signal.target}") from None
+                index = target
 
     def _exec_display(self, node) -> None:
         parts: list[str] = []
@@ -258,7 +266,8 @@ class CoreMixin:
             if field.blank_when_zero:
                 number = self.to_decimal(value)
                 if number == 0:
-                    return ""
+                    # 整個欄位填空白（保留欄位寬度），不是印出空字串
+                    return " " * self.element_length(field)
             if field.pic is not None and field.pic.category == CAT_NUMERIC_EDITED:
                 return field.pic.to_text(self.to_decimal(value))
             if field.pic is not None and field.pic.category == CAT_NUMERIC and isinstance(value, Decimal):
@@ -276,7 +285,10 @@ class CoreMixin:
         """格式化 SIGN IS SEPARATE 的數值：數字補零，符號獨立顯示。"""
         magnitude = abs(value)
         # 整數部分補零到 int_digits 位
-        int_part = format_decimal(magnitude.to_integral_value(), 0).zfill(pic.int_digits)
+        # 整數部分必須截斷而不是捨入，否則 13.5 會顯示成 14.5
+        int_part = format_decimal(
+            magnitude.to_integral_value(rounding=ROUND_DOWN), 0
+        ).zfill(pic.int_digits)
         # 小數部分
         if pic.dec_digits > 0:
             dec_part = format_decimal(magnitude, pic.dec_digits)

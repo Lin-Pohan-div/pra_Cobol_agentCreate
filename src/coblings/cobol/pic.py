@@ -48,6 +48,9 @@ from .errors import SyntaxError_
 ALPHA_CHARS = frozenset("XAN")
 #: 會佔用一個數字位置的字元
 DIGIT_CHARS = frozenset("91")
+
+#: 浮動插入符號：出現兩次以上時，第一個是符號槽、其餘是數字位置
+FLOATING_CHARS = ("$", "+", "-")
 #: 浮動編輯字元（本身不佔數字位置）
 FLOATING_INSERTION = frozenset(",.")
 #: 固定插入字元（本身不佔數字位置）
@@ -202,15 +205,30 @@ class Pic:
         會產生一個 position 清單，每個元素是 ``(字元, 是否佔數字位置)``，
         輸出編輯字串時依此清單逐位置填入。
         """
-        positions: list[tuple[str, bool]] = []
+        # 先把 units 展開成字元清單，方便偵測連續的浮動符號
+        expanded: list[str] = []
         for u in self.units:
-            ch = u.ch
-            if ch == "S":
+            if u.ch == "S":
                 continue
-            if ch in DIGIT_CHARS or ch in "Z*$":
-                positions.extend((ch, True) for _ in range(u.count))
-            elif ch in ("B", "0", "/", ",", ".", "+", "-", "CR", "DB", "P", "E"):
-                positions.extend((ch, False) for _ in range(u.count))
+            expanded.extend([u.ch] * u.count)
+
+        positions: list[tuple[str, bool]] = []
+        # 浮動插入（$ + -）：同一個符號出現 n 個（中間可以夾 , . B 0 /）時，
+        # 第一個是符號槽，其餘 n-1 個才是數字位置；只出現一次就是固定插入
+        # 先算好各符號的總數，避免在迴圈裡反覆 count（$(99999) 會變成 O(n²)）
+        floating_totals = {symbol: expanded.count(symbol) for symbol in FLOATING_CHARS}
+        floating_seen: set[str] = set()
+        for ch in expanded:
+            if ch in DIGIT_CHARS or ch in "Z*":
+                positions.append((ch, True))
+            elif ch in FLOATING_CHARS:
+                if floating_totals[ch] > 1 and ch in floating_seen:
+                    positions.append((ch, True))
+                else:
+                    floating_seen.add(ch)
+                    positions.append((ch, False))
+            elif ch in ("B", "0", "/", ",", ".", "CR", "DB", "P", "E"):
+                positions.append((ch, False))
             else:
                 raise SyntaxError_(f"PICTURE '{self.text}' 的字元 '{ch}' 不能出現在編輯欄位")
 
@@ -360,88 +378,99 @@ class Pic:
         return format_decimal(value, self.dec_digits)
 
     def _edited_to_text(self, value: Decimal) -> str:
-        """產生數字編輯欄位的字串。"""
+        """產生數字編輯欄位的字串。
+
+        分三步：把數值拆成逐位數字、依 ``positions`` 逐位置填入、
+        最後收攏浮動的 ``$`` 與 ``+``／``-``（只留最右邊一個）。
+        """
         negative = value < 0
-        magnitude = abs(value)
-        int_text = format_decimal(magnitude.to_integral_value(rounding=ROUND_DOWN), 0)
-        dec_text = ""
-        if self.dec_digits > 0:
-            whole = format_decimal(magnitude, 0)
-            decimal_part = format_decimal(magnitude, self.dec_digits)
-            if "." in decimal_part:
-                dec_text = decimal_part.split(".", 1)[1]
-            del whole
-        digits = (int_text + dec_text).rjust(self.int_digits + self.dec_digits, "0")
+        digits = self._edit_digits(abs(value))
 
         def _suppressed(upto: int) -> bool:
             """第 upto 個數字位置（含）之前是否全是前導零。"""
-            return upto < self.int_digits and all(
-                d == "0" for d in digits[: upto + 1]
-            )
+            return upto < self.int_digits and all(d == "0" for d in digits[: upto + 1])
 
-        # 依 picture 的數字位置填入
+        # 被抑制的逗號：有 * 保護時填 *，否則填空白
+        comma_fill = "*" if any(ch == "*" for ch, _ in self.positions) else " "
         out: list[str] = []
-        dollar_leading: list[int] = []
+        # 浮動符號的「槽」（非數字位置）與「浮到數字位置上」的索引，最後一起收攏
+        dollar_slots: list[int] = []
+        dollar_floats: list[int] = []
+        sign_slots: list[int] = []
+        sign_floats: list[int] = []
         digit_index = 0
-        int_seen = 0
-        positions = self.positions
-        for idx, (ch, is_digit) in enumerate(positions):
+        for ch, is_digit in self.positions:
             if not is_digit:
-                if ch == ".":
-                    out.append(".")
-                elif ch == ",":
-                    # 左邊的整數位全是前導零時，逗號跟著一起被抑制
-                    out.append(" " if _suppressed(int_seen - 1) else ",")
-                elif ch == "B":
-                    out.append(" ")
-                elif ch == "0":
-                    out.append("0")
-                elif ch == "/":
-                    out.append("/")
-                elif ch in "+-":
-                    out.append(ch if negative else " ")
-                elif ch in ("CR", "DB"):
-                    if ch == "CR":
-                        out.append("CR" if negative else "  ")
-                    else:
-                        out.append("DB" if negative else "  ")
-                elif ch == "P":
-                    out.append("0")
-                else:
-                    out.append(" ")
+                if ch == "," and _suppressed(digit_index - 1):
+                    out.append(comma_fill)
+                    continue
+                if ch == "$":
+                    dollar_slots.append(len(out))
+                elif ch in ("+", "-"):
+                    sign_slots.append(len(out))
+                out.append(_insertion_text(ch, negative))
                 continue
-            # 是數字位置
-            if ch == "Z":
-                char = digits[digit_index] if digit_index < len(digits) else "0"
-                if _suppressed(digit_index) and char == "0":
-                    char = " "
-                out.append(char)
-            elif ch == "*":
-                char = digits[digit_index] if digit_index < len(digits) else "0"
-                if _suppressed(digit_index) and char == "0":
-                    char = "*"
-                out.append(char)
-            elif ch == "$":
-                char = digits[digit_index] if digit_index < len(digits) else "0"
-                if _suppressed(digit_index):
-                    out.append("$")
-                    dollar_leading.append(len(out) - 1)
-                else:
-                    out.append(char)
-            else:  # 9 / 1
-                out.append(digits[digit_index] if digit_index < len(digits) else "0")
-            digit_index += 1
-            int_seen += 1
 
-        # 浮動的 $ 只留最右邊一個，左邊的改成空白（例如 $$,$$9.99 的 12.5 → "    $12.50"）
-        for position in dollar_leading[:-1]:
-            out[position] = " "
+            char = digits[digit_index] if digit_index < len(digits) else "0"
+            suppressed = _suppressed(digit_index)
+            if ch == "$" and suppressed:
+                dollar_floats.append(len(out))
+                out.append("$")
+            elif ch in ("+", "-") and suppressed and char == "0":
+                sign_floats.append(len(out))
+                out.append(_insertion_text(ch, negative))
+            elif ch in ("Z", "*") and suppressed and char == "0":
+                out.append(" " if ch == "Z" else "*")
+            else:
+                out.append(char)
+            digit_index += 1
+
+        # 例如 $$,$$9.99 的 12.5 → "   $12.50"
+        _collapse_floating(out, dollar_slots, dollar_floats)
+        _collapse_floating(out, sign_slots, sign_floats)
 
         text = "".join(out)
         if self.suppress_all:
             # 全部由正負號組成的欄位：正數不顯示任何符號
             text = text.rstrip()
         return text
+
+    def _edit_digits(self, magnitude: Decimal) -> str:
+        """把絕對值拆成「整數位 + 小數位」的數字字串，左邊補零到欄位的總位數。"""
+        int_text = format_decimal(magnitude.to_integral_value(rounding=ROUND_DOWN), 0)
+        dec_text = ""
+        if self.dec_digits > 0:
+            decimal_part = format_decimal(magnitude, self.dec_digits)
+            if "." in decimal_part:
+                dec_text = decimal_part.split(".", 1)[1]
+        return (int_text + dec_text).rjust(self.int_digits + self.dec_digits, "0")
+
+
+#: 編輯欄位裡不佔數字位置的固定插入字元（正負號依數值決定，見 _insertion_text）
+_FIXED_INSERTIONS = {".": ".", ",": ",", "B": " ", "0": "0", "/": "/", "$": "$", "P": "0"}
+
+
+def _insertion_text(ch: str, negative: bool) -> str:
+    """非數字位置要輸出的文字。"""
+    if ch == "+":
+        return "-" if negative else "+"
+    if ch == "-":
+        return "-" if negative else " "
+    if ch in ("CR", "DB"):
+        return ch if negative else "  "
+    return _FIXED_INSERTIONS.get(ch, " ")
+
+
+def _collapse_floating(out: list[str], slots: list[int], floats: list[int]) -> None:
+    """浮動符號只留最右邊一個。
+
+    符號有浮到數字位置上時，左邊浮動的與原本的符號槽都改成空白；
+    數字填滿（沒有浮動）時，符號留在槽裡。
+    """
+    if not floats:
+        return
+    for position in slots + floats[:-1]:
+        out[position] = " "
 
 
 def format_decimal(value: Decimal, dec: int) -> str:

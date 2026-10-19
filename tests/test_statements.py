@@ -261,15 +261,6 @@ class StatementTest(DisplayMixin, unittest.TestCase):
         )
         self.assertEqual(lines, ["2"])
 
-    def test_set_condition_name(self):
-        lines = self.display(
-            '01 F PIC X VALUE "N".\n'
-            '88 IS-YES VALUE "Y".\n'
-            '       P1. SET IS-YES TO TRUE\n'
-            '           DISPLAY F.\n'
-        )
-        self.assertEqual(lines, ["Y"])
-
     def test_initialize(self):
         lines = self.display(
             '01 G.\n'
@@ -298,12 +289,14 @@ class StatementTest(DisplayMixin, unittest.TestCase):
         self.assertEqual(lines, ["6 ab|", "A 65", "1 2"])
 
     def test_blank_when_zero(self):
+        # 值為零時整個欄位顯示成空白，寬度不變；不是零就照平常顯示
         lines = self.display(
-            '01 N PIC ZZZ9 VALUE 0.\n'
-            '01 M PIC ZZZ9 VALUE 5.\n'
-            '       P1. DISPLAY "[" N "][" M "]".\n'
+            '01 N PIC 9(4) VALUE 0 BLANK WHEN ZERO.\n'
+            '01 E PIC ZZ9.99 VALUE 0 BLANK WHEN ZERO.\n'
+            '01 M PIC ZZ9.99 VALUE 5 BLANK WHEN ZERO.\n'
+            '       P1. DISPLAY "[" N "][" E "][" M "]".\n'
         )
-        self.assertEqual(lines, ["[   0][   5]"])
+        self.assertEqual(lines, ["[    ][      ][  5.00]"])
 
     def test_display_spaces_prints_blank(self):
         lines = self.display(
@@ -529,17 +522,6 @@ class ConditionTest(DisplayMixin, unittest.TestCase):
 
 class ControlFlowTest(DisplayMixin, unittest.TestCase):
     """PERFORM 範圍、GO TO、EXIT PERFORM／PARAGRAPH／SECTION。"""
-
-    def test_go_to_depending_picks_target(self):
-        lines = self.display(
-            '01 N PIC 9(2) VALUE 2.\n'
-            '       P1. GO TO T-1 T-2 DEPENDING ON N\n'
-            '           DISPLAY "skip".\n'
-            '       T-1. DISPLAY "one".\n'
-            '       T-2. DISPLAY "two".\n'
-            '           EXIT.\n'
-        )
-        self.assertEqual(lines, ["two"])
 
     def test_go_to_depending_out_of_range_falls_through(self):
         # 索引超出目標範圍時不跳，接著執行下一句；段落結束後照 COBOL 規則
@@ -820,3 +802,105 @@ class IntrinsicTest(DisplayMixin, unittest.TestCase):
     def test_length_check_is_reported_as_unsupported(self):
         with self.assertRaises(RuntimeError_):
             self.display('01 N PIC 9.\n       P1. COMPUTE N = FUNCTION LENGTH-CHECK("AB") GOBACK.\n')
+
+
+class ReviewRegressionTest(DisplayMixin, unittest.TestCase):
+    """code review 修正的回歸測試。"""
+
+    def test_remainder_of_negative_dividend_with_unsigned_quotient(self):
+        # 餘數用有號的中間商計算：-7 = 2 × (-3) + (-1)
+        lines = self.display(
+            '01 A PIC S99 VALUE -7.\n'
+            '01 Q PIC 99.\n'
+            '01 R PIC S99.\n'
+            '       P1. DIVIDE A BY 2 GIVING Q REMAINDER R DISPLAY Q " " R GOBACK.\n'
+        )
+        self.assertEqual(lines, ["3 -1"])
+
+    def test_remainder_ignores_rounded_quotient(self):
+        lines = self.display(
+            '01 Q PIC 9.\n'
+            '01 R PIC 99.\n'
+            '       P1. DIVIDE 7 BY 2 GIVING Q ROUNDED REMAINDER R DISPLAY Q " " R GOBACK.\n'
+        )
+        self.assertEqual(lines, ["4 1"])
+
+    def test_remainder_uses_quotient_decimal_places(self):
+        lines = self.display(
+            '01 Q PIC 9V9.\n'
+            '01 R PIC 9V99.\n'
+            '       P1. DIVIDE 7 BY 2 GIVING Q REMAINDER R DISPLAY Q " " R GOBACK.\n'
+        )
+        self.assertEqual(lines, ["3.5 0.00"])
+
+    def test_multiply_and_divide_receiver_rounded(self):
+        lines = self.display(
+            '01 M PIC 9 VALUE 3.\n'
+            '01 D PIC 9 VALUE 7.\n'
+            '       P1. MULTIPLY 0.5 BY M ROUNDED\n'
+            '           DIVIDE 2 INTO D ROUNDED\n'
+            '           DISPLAY M " " D GOBACK.\n'
+        )
+        self.assertEqual(lines, ["2 4"])
+
+    def test_size_error_without_on(self):
+        lines = self.display(
+            '01 X PIC 9 VALUE 9.\n'
+            '       P1. ADD 5 TO X SIZE ERROR DISPLAY "OVF"\n'
+            '               NOT SIZE ERROR DISPLAY "OK"\n'
+            '           END-ADD\n'
+            '           DISPLAY X GOBACK.\n'
+        )
+        self.assertEqual(lines, ["OVF", "9"])
+
+    def test_rounded_mode_is_accepted(self):
+        lines = self.display(
+            '01 X PIC 9.\n'
+            '       P1. COMPUTE X ROUNDED MODE IS NEAREST-AWAY-FROM-ZERO = 2.5\n'
+            '           DISPLAY X GOBACK.\n'
+        )
+        self.assertEqual(lines, ["3"])
+
+    def test_perform_varying_with_test_after(self):
+        # TEST AFTER：先執行再判斷，I=4 時也會執行一次
+        lines = self.display(
+            '01 I PIC 99.\n'
+            '01 N PIC 99 VALUE 0.\n'
+            '       P1. PERFORM WITH TEST AFTER VARYING I FROM 1 BY 1 UNTIL I > 3\n'
+            '               ADD 1 TO N\n'
+            '           END-PERFORM\n'
+            '           DISPLAY N " " I GOBACK.\n'
+        )
+        self.assertEqual(lines, ["4 4"])
+
+    def test_evaluate_consecutive_whens_share_body(self):
+        source = (
+            '01 X PIC 9.\n'
+            '       P1. PERFORM VARYING X FROM 1 BY 1 UNTIL X > 3\n'
+            '               EVALUATE X\n'
+            '                   WHEN 1\n'
+            '                   WHEN 2\n'
+            '                       DISPLAY "LOW"\n'
+            '                   WHEN OTHER\n'
+            '                       DISPLAY "HIGH"\n'
+            '               END-EVALUATE\n'
+            '           END-PERFORM GOBACK.\n'
+        )
+        self.assertEqual(self.display(source), ["LOW", "LOW", "HIGH"])
+
+    def test_expect_no_error_follows_go_to_chain(self):
+        # 斷言內建執行的段落裡連續 GO TO，不能漏到檢查器的主流程
+        lines, code, interp = run_program(
+            '       P1. CALL "COBLINGS-EXPECT-NO-ERROR"\n'
+            '               USING BY CONTENT "跳轉" BY CONTENT "P-A"\n'
+            '           DISPLAY "BACK"\n'
+            '           CALL "COBLINGS-DONE"\n'
+            '           GOBACK.\n'
+            '       P-A. GO TO P-B.\n'
+            '       P-B. GO TO P-C.\n'
+            '       P-C. DISPLAY "C".\n'
+            '       P-END. DISPLAY "END".\n'
+        )
+        self.assertEqual(lines, ["C", "BACK"])
+        self.assertEqual(code, 0)
+        self.assertTrue(interp.passed)

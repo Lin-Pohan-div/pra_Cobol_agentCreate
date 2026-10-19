@@ -528,8 +528,13 @@ class ValuesMixin:
         raise RuntimeError_(f"無法把 {value!r} 當成數值使用")
 
     def to_int(self, value, what: str = "數值") -> int:
+        """轉成整數（下標、TIMES、索引等），小數部分一律向零截斷。
+
+        COBOL 把非整數放進整數用途時是截斷而不是捨入：``2.7`` → 2、``-2.7`` → -2。
+        不要改回預設的 ROUND_HALF_EVEN，否則 ``T (2.5)`` 這類下標會變成 2 或 3 不定。
+        """
         try:
-            return int(self.to_decimal(value).to_integral_value())
+            return int(self.to_decimal(value).to_integral_value(rounding=ROUND_DOWN))
         except (InvalidOperation, ValueError):
             raise RuntimeError_(f"{what} 必須是整數，但讀到 {value!r}") from None
 

@@ -11,6 +11,11 @@ from .base import (
     _RELATIONS,
 )
 
+_PHRASE_AFTER_NOT = frozenset({"ON", "AT", "INVALID", "SIZE", "OVERFLOW", "END", "EXCEPTION"})
+
+#: ON SIZE ERROR／ON OVERFLOW／ON EXCEPTION 短語的關鍵字（ON 可省略）
+_PHRASE_HEADS = ("SIZE", "OVERFLOW", "EXCEPTION")
+
 
 class ProcParser(ParserBase):
     """解析段落與前半段敘述。"""
@@ -242,6 +247,8 @@ class ProcParser(ParserBase):
         if self.tok.kind == WORD:
             if self.tok.upper in SCOPED_TERMINATORS:
                 return True
+            if self.tok.upper == "NOT" and self.peek(1).kind == WORD and self.peek(1).upper in _PHRASE_AFTER_NOT:
+                return True
             return self.tok.upper in VERBS
         return False
 
@@ -311,7 +318,8 @@ class ProcParser(ParserBase):
                 return True
             return self.tok.upper in (
                 "BY", "GIVING", "ON", "NOT", "TO", "FROM", "INTO", "REPLACING",
-            )
+                "REMAINDER",
+            ) + _PHRASE_HEADS
         return self.tok.kind == OP and self.tok.value in "+-*/=<>"
 
     # ---- COMPUTE
@@ -360,8 +368,12 @@ class ProcParser(ParserBase):
     def _eat_rounded(self) -> bool:
         if self.at_word("ROUNDED"):
             self.advance()
-            # ROUNDED 後面可能有 MODE 與捨入方式，但本系統一律用四捨五入；
-            # 不要順便吃掉後面的字，否則會把下一個敘述的動詞吃掉。
+            # ROUNDED 後面可能有 MODE [IS] 捨入方式，但本系統一律用四捨五入；
+            # 只在明確寫了 MODE 時才吃掉這三個字，否則會把下一個敘述的動詞吃掉。
+            if self.eat_word("MODE"):
+                self.eat_word("IS")
+                if self.tok.kind == WORD:
+                    self.advance()
             return True
         return False
 
@@ -370,8 +382,9 @@ class ProcParser(ParserBase):
 
         供敘述清單在短語邊界停下來：`ON SIZE ERROR`、`ON OVERFLOW`、
         `ON EXCEPTION` 以及各自的 `NOT` 形式（含 `AT` 變體）。
+        標準裡 ON 可以省略，所以 `SIZE ERROR`、`NOT SIZE ERROR` 也算。
         """
-        if self.tok.kind != WORD or self.tok.upper not in ("ON", "AT", "NOT"):
+        if self.tok.kind != WORD or self.tok.upper not in ("ON", "AT", "NOT") + _PHRASE_HEADS:
             return False
         save = self.pos
         if self.tok.kind == WORD and self.tok.upper == "NOT":
@@ -379,51 +392,38 @@ class ProcParser(ParserBase):
             if self.at_eof():
                 self.pos = save
                 return False
-        if not (self.tok.kind == WORD and self.tok.upper in ("ON", "AT")):
-            self.pos = save
-            return False
-        self.pos += 1
-        if self.at_eof():
-            self.pos = save
-            return False
-        is_phrase = self.tok.kind == WORD and self.tok.upper in (
-            "SIZE", "OVERFLOW", "EXCEPTION",
-        )
+        if self.tok.kind == WORD and self.tok.upper in ("ON", "AT"):
+            self.pos += 1
+            if self.at_eof():
+                self.pos = save
+                return False
+        is_phrase = self.tok.kind == WORD and self.tok.upper in _PHRASE_HEADS
         self.pos = save
         return is_phrase
 
     def _parse_size_error_phrases(self):
         """解析 ON SIZE ERROR / ON OVERFLOW 與 NOT ON SIZE ERROR。"""
         result = {}
-        while self.at_word("ON", "AT", "NOT"):
-            save = self.pos
-            negated = False
-            if self.eat_word("NOT"):
-                negated = True
-            if self.eat_word("ON", "AT"):
-                kind = None
-                if self.eat_word("SIZE"):
-                    self.eat_word("ERROR")
-                    kind = "size_error"
-                elif self.eat_word("OVERFLOW"):
-                    kind = "overflow"
-                elif self.eat_word("EXCEPTION"):
-                    kind = "exception"
-                if kind is None:
-                    self.pos = save
-                    break
-                if negated:
-                    kind = "not_" + kind
-                if kind == "exception" or kind == "not_exception":
-                    self.skip_to_period()
-                    continue
-                body = self.parse_statement_list(("END-IF",))
-                if self.at_word("END-IF"):
-                    self.advance()
-                result[kind] = body
+        while self._at_size_phrase_start():
+            negated = bool(self.eat_word("NOT"))
+            self.eat_word("ON", "AT")  # ON 可以省略
+            if self.eat_word("SIZE"):
+                self.eat_word("ERROR")
+                kind = "size_error"
+            elif self.eat_word("OVERFLOW"):
+                kind = "overflow"
+            else:
+                self.eat_word("EXCEPTION")
+                kind = "exception"
+            if negated:
+                kind = "not_" + kind
+            if kind == "exception" or kind == "not_exception":
+                self.skip_to_period()
                 continue
-            self.pos = save
-            break
+            body = self.parse_statement_list(("END-IF",))
+            if self.at_word("END-IF"):
+                self.advance()
+            result[kind] = body
         return result
 
     # ---- ADD / SUBTRACT / MULTIPLY / DIVIDE
@@ -448,6 +448,19 @@ class ProcParser(ParserBase):
         return operands
 
 
+    def _parse_rounded_targets(self) -> list[tuple]:
+        """接收欄位清單：``A ROUNDED, B C ROUNDED``，逗號可省略。"""
+        targets = []
+        while True:
+            target = self.parse_identifier()
+            targets.append((target, self._eat_rounded()))
+            if self.tok.kind == COMMA:
+                self.advance()
+                continue
+            if self.tok.kind == WORD and not self._at_receiving_end():
+                continue
+            return targets
+
     def parse_add(self, line: int, column: int):
         self.advance()
         operands = self._parse_operand_list(("TO", "GIVING", "ON", "AT", "NOT"))
@@ -456,25 +469,11 @@ class ProcParser(ParserBase):
         while True:
             if self.at_word("TO"):
                 self.advance()
-                while True:
-                    target = self.parse_identifier()
-                    rounded = self._eat_rounded()
-                    to_targets.append((target, rounded))
-                    if self.tok.kind == COMMA:
-                        self.advance()
-                        continue
-                    break
+                to_targets.extend(self._parse_rounded_targets())
                 continue
             if self.at_word("GIVING"):
                 self.advance()
-                while True:
-                    target = self.parse_identifier()
-                    rounded = self._eat_rounded()
-                    giving.append((target, rounded))
-                    if self.tok.kind == COMMA:
-                        self.advance()
-                        continue
-                    break
+                giving.extend(self._parse_rounded_targets())
                 continue
             break
         if not to_targets and not giving:
@@ -492,23 +491,9 @@ class ProcParser(ParserBase):
         from_targets: list[tuple] = []
         giving: list[tuple] = []
         if self.eat_word("FROM"):
-            while True:
-                target = self.parse_identifier()
-                rounded = self._eat_rounded()
-                from_targets.append((target, rounded))
-                if self.tok.kind == COMMA:
-                    self.advance()
-                    continue
-                break
+            from_targets.extend(self._parse_rounded_targets())
         if self.eat_word("GIVING"):
-            while True:
-                target = self.parse_identifier()
-                rounded = self._eat_rounded()
-                giving.append((target, rounded))
-                if self.tok.kind == COMMA:
-                    self.advance()
-                    continue
-                break
+            giving.extend(self._parse_rounded_targets())
         on_size_error = self._parse_size_error_phrases()
         self.eat_word("END-SUBTRACT")
         return nodes.Node(
@@ -521,21 +506,15 @@ class ProcParser(ParserBase):
         left = self.parse_operand()
         self.eat_word("BY")
         right = self.parse_operand()
+        right_rounded = self._eat_rounded()
         giving: list[tuple] = []
         if self.eat_word("GIVING"):
-            while True:
-                target = self.parse_identifier()
-                rounded = self._eat_rounded()
-                giving.append((target, rounded))
-                if self.tok.kind == COMMA:
-                    self.advance()
-                    continue
-                break
+            giving.extend(self._parse_rounded_targets())
         on_size_error = self._parse_size_error_phrases()
         self.eat_word("END-MULTIPLY")
         return nodes.Node(
-            "multiply", line, column, left=left, right=right, giving=giving,
-            on_size_error=on_size_error
+            "multiply", line, column, left=left, right=right, right_rounded=right_rounded,
+            giving=giving, on_size_error=on_size_error
         )
 
     def parse_divide(self, line: int, column: int):
@@ -550,31 +529,18 @@ class ProcParser(ParserBase):
         else:
             self.eat_word("INTO")
         right = self.parse_operand()
+        right_rounded = self._eat_rounded()
         into: list[tuple] = []
         giving: list[tuple] = []
         remainder_target = None
         while True:
             if self.at_word("INTO"):
                 self.advance()
-                while True:
-                    target = self.parse_identifier()
-                    rounded = self._eat_rounded()
-                    into.append((target, rounded))
-                    if self.tok.kind == COMMA:
-                        self.advance()
-                        continue
-                    break
+                into.extend(self._parse_rounded_targets())
                 continue
             if self.at_word("GIVING"):
                 self.advance()
-                while True:
-                    target = self.parse_identifier()
-                    rounded = self._eat_rounded()
-                    giving.append((target, rounded))
-                    if self.tok.kind == COMMA:
-                        self.advance()
-                        continue
-                    break
+                giving.extend(self._parse_rounded_targets())
                 continue
             if self.at_word("REMAINDER"):
                 self.advance()
@@ -584,8 +550,9 @@ class ProcParser(ParserBase):
         on_size_error = self._parse_size_error_phrases()
         self.eat_word("END-DIVIDE")
         return nodes.Node(
-            "divide", line, column, left=left, right=right, into=into, giving=giving,
-            remainder=remainder_target, on_size_error=on_size_error, by_form=by_form
+            "divide", line, column, left=left, right=right, right_rounded=right_rounded,
+            into=into, giving=giving, remainder=remainder_target,
+            on_size_error=on_size_error, by_form=by_form
         )
 
     # ---- IF
@@ -631,6 +598,7 @@ class ProcParser(ParserBase):
             subjects.append(self._parse_evaluate_subject())
         whens: list[tuple] = []
         when_other: list = []
+        pending: list = []          # 連續 WHEN 累積的條件（共用下一個 body）
         while not self.at_eof() and not self.at_word("END-EVALUATE"):
             if self.at_word("WHEN"):
                 self.advance()
@@ -638,6 +606,10 @@ class ProcParser(ParserBase):
                     self.advance()
                     when_other = self.parse_statement_list(("WHEN", "END-EVALUATE"))
                     self._eat_period_before("WHEN", "END-EVALUATE")
+                    # OTHER 的 body 與前面累積的空 WHEN 共用
+                    if pending:
+                        whens.extend((cond, when_other) for cond in pending)
+                        pending = []
                     continue
                 conditions: list = []
                 while True:
@@ -662,9 +634,19 @@ class ProcParser(ParserBase):
                     break
                 body = self.parse_statement_list(("WHEN", "END-EVALUATE"))
                 self._eat_period_before("WHEN", "END-EVALUATE")
+                if not body and self.at_word("WHEN"):
+                    # 空分支：與下一個 WHEN 共用敘述
+                    pending.append(conditions)
+                    continue
+                if pending:
+                    whens.extend((cond, body) for cond in pending)
+                    pending = []
                 whens.append((conditions, body))
                 continue
             break
+        # 迴圈結束前，把剩下的 pending 以空 body 補進 whens
+        for cond in pending:
+            whens.append((cond, []))
         self.eat_word("END-EVALUATE")
         return nodes.Node("evaluate", line, column, subjects=subjects, whens=whens, when_other=when_other)
 

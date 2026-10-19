@@ -1,7 +1,7 @@
 """直譯器算術敘述：COMPUTE／ADD／SUBTRACT／MULTIPLY／DIVIDE。"""
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
 from ..errors import RuntimeError_
 from ..pic import CAT_ALPHANUMERIC
@@ -104,7 +104,7 @@ class ArithMixin:
             for target, rounded in node.giving:
                 if not self._store_result(target, product, rounded):
                     overflowed = True
-        elif not self._store_result(node.right, product):
+        elif not self._store_result(node.right, product, bool(node.get("right_rounded"))):
             overflowed = True
         self._finish_arithmetic(node, overflowed)
 
@@ -135,9 +135,14 @@ class ArithMixin:
         else:
             # 沒有寫 GIVING（或 INTO 清單）時，接收欄位就是關鍵字後面那個
             raw_targets = node.into or ([node.right] if node.right is not None else [])
-            targets = [
-                item if isinstance(item, tuple) else (item, False) for item in raw_targets
-            ]
+            targets = []
+            for item in raw_targets:
+                if isinstance(item, tuple):
+                    targets.append(item)
+                elif item is node.right:
+                    targets.append((item, bool(node.get("right_rounded"))))
+                else:
+                    targets.append((item, False))
             for target, rounded in targets:
                 current = self._current_value(target)
                 # INTO 的接收欄位自己就是被除數；BY 的接收欄位只是存放結果
@@ -145,9 +150,23 @@ class ArithMixin:
                 if not self._store_result(target, value, rounded):
                     overflowed = True
         if node.remainder is not None:
-            remainder = dividend - divisor * (dividend / divisor).to_integral_value(
-                rounding="ROUND_DOWN"
+            if node.giving:
+                q_target = node.giving[0][0]
+            elif node.into:
+                q_target = node.into[0][0]
+            else:
+                q_target = node.right
+            # 餘數用「有號、依商數欄位小數位截斷」的中間商計算（不受 ROUNDED 影響，
+            # 也不因商數欄位無號而取絕對值）
+            dec_digits = 0
+            if getattr(q_target, "kind", None) == "identifier":
+                q_pic = self.resolve(q_target).field.pic
+                if q_pic is not None and q_pic.category != CAT_ALPHANUMERIC:
+                    dec_digits = q_pic.dec_digits
+            quotient = (dividend / divisor).quantize(
+                Decimal(1).scaleb(-dec_digits), rounding=ROUND_DOWN
             )
+            remainder = dividend - divisor * quotient
             if not self._store_result(node.remainder, remainder):
                 overflowed = True
         self._finish_arithmetic(node, overflowed)

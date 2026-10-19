@@ -96,6 +96,14 @@ class FilesMixin:
                 raise RuntimeError_("ASSIGN TO 不能寫到題目資料夾外面")
         except ValueError as error:
             raise RuntimeError_("ASSIGN TO 不能寫到題目資料夾外面") from error
+        # 保護題目檔與檢查器：不可覆寫 *.cbl、.original/、exercise.json、expected.txt
+        base = os.path.basename(path).lower()
+        if base in ("exercise.json", "expected.txt") or base.endswith(".cbl"):
+            raise RuntimeError_("ASSIGN TO 不能使用受保護的題目檔名")
+        rel = os.path.relpath(path, root)
+        parts = rel.split(os.sep)
+        if parts and parts[0].lower() == ".original":
+            raise RuntimeError_("ASSIGN TO 不能寫入 .original 資料夾")
         return path
 
     def _exec_close(self, node) -> None:

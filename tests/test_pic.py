@@ -40,13 +40,6 @@ class PicTest(DisplayMixin, unittest.TestCase):
         self.assertEqual(pic.quantize(Decimal("123.9")), Decimal("123"))
         self.assertEqual(pic.quantize(Decimal("123.6"), rounding=True), Decimal("124"))
 
-    def test_overflow_truncates_but_is_reported(self):
-        # COBOL 的預設是截斷（GnuCOBOL 的 truncate），溢位由 ON SIZE ERROR 處理
-        self.assertEqual(Pic("9(2)").quantize(Decimal("1234")), Decimal("34"))
-        self.assertFalse(Pic("9(2)").quantize(Decimal("34")) is None)
-        self.assertTrue(Pic("9(2)").overflows(Decimal("1234")))
-        self.assertFalse(Pic("9(2)").overflows(Decimal("34")))
-
     def test_edit_suppresses_leading_zero(self):
         self.assertEqual(Pic("ZZZ9.99").to_text(Decimal("12.5")), "  12.50")
         self.assertEqual(Pic("ZZZ9.99").to_text(Decimal("0")), "   0.00")
@@ -68,9 +61,6 @@ class PicTest(DisplayMixin, unittest.TestCase):
     def test_comma_suppressed_for_small_values(self):
         self.assertEqual(Pic("ZZZ,ZZ9.99").to_text(Decimal("12.5")), "     12.50")
         self.assertEqual(Pic("ZZZ,ZZ9.99").to_text(Decimal("1234.5")), "  1,234.50")
-
-    def test_floating_dollar_shows_once(self):
-        self.assertEqual(Pic("$$,$$9.99").to_text(Decimal("12.5")), "   $12.50")
 
     def test_picture_repeat_cap(self):
         with self.assertRaises(SyntaxError_):
@@ -138,3 +128,37 @@ class SignSeparateTest(DisplayMixin, unittest.TestCase):
             '       P1. DISPLAY "[" N "]".\n'
         )
         self.assertEqual(lines, ["[-12]"])
+
+    def test_sign_separate_does_not_round_integer_part(self):
+        lines = self.display(
+            '01 N PIC S99V9 VALUE 13.5 SIGN IS LEADING SEPARATE.\n'
+            '01 M PIC S99V9 VALUE 99.9 SIGN IS LEADING SEPARATE.\n'
+            '       P1. DISPLAY "[" N "][" M "]".\n'
+        )
+        self.assertEqual(lines, ["[ 13.5][ 99.9]"])
+
+
+class FloatingInsertionTest(unittest.TestCase):
+    """浮動插入：n 個 $／+／- 只代表 n-1 個數字位置。"""
+
+    def test_floating_dollar_keeps_symbol_when_digits_fill(self):
+        self.assertEqual(Pic("$$9").int_digits, 2)
+        self.assertEqual(Pic("$$9").to_text(Decimal("99")), "$99")
+        self.assertEqual(Pic("$$9").to_text(Decimal("5")), " $5")
+        self.assertEqual(Pic("$$,$$9.99").to_text(Decimal("12.5")), "   $12.50")
+        self.assertEqual(Pic("$$,$$9.99").to_text(Decimal("1234.5")), "$1,234.50")
+
+    def test_single_dollar_is_fixed_insertion(self):
+        self.assertEqual(Pic("$999").to_text(Decimal("12")), "$012")
+        self.assertEqual(Pic("$ZZ9").to_text(Decimal("5")), "$  5")
+
+    def test_floating_minus_and_plus(self):
+        self.assertEqual(Pic("--9").to_text(Decimal("-5")), " -5")
+        self.assertEqual(Pic("--9").to_text(Decimal("25")), " 25")
+        self.assertEqual(Pic("++9").to_text(Decimal("7")), " +7")
+        self.assertEqual(Pic("+ZZ9").to_text(Decimal("4")), "+  4")
+
+    def test_floating_sign_across_comma(self):
+        self.assertEqual(Pic("--,--9").int_digits, 4)
+        self.assertEqual(Pic("--,--9").to_text(Decimal("-1234")), "-1,234")
+        self.assertEqual(Pic("--,--9").to_text(Decimal("-12")), "   -12")

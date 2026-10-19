@@ -7,6 +7,7 @@ import shutil
 import sys
 import time
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Callable
 
@@ -194,7 +195,7 @@ def guide(exercises: list[Exercise], state: AppState) -> int:
         f"  - 測試超過 {constants.TEST_TIMEOUT_SECONDS} 秒沒跑完會判定逾時，通常是無窮迴圈"
     )
     console.print_text("  - 想離開按 Ctrl+C")
-    console.print_text(f"  指定題目：{launcher} run 15_recursion（可用 id、名稱或主題關鍵字）")
+    console.print_text(f"  指定題目：{launcher} run 15_paragraphs（可用 id、名稱或主題關鍵字）")
     console.println()
     console.step("卡住了怎麼辦")
     console.print_text("  1. 仔細看錯誤訊息裡的檔名與行號")
@@ -384,26 +385,58 @@ def restore_source(root: str, target: Exercise) -> None:
 def scan_progress(exercises: list[Exercise], state: AppState) -> None:
     """依檔案的實際狀態重建完成集合。"""
     ordered = sorted(exercises, key=lambda item: item.order)
-    for index, exercise in enumerate(ordered, start=1):
-        console.raw(f"\r掃描進度中… {index}/{len(ordered)} {exercise.id}  ")
-        if is_unmodified(exercise):
-            state.unmark_done(exercise.id)
-            continue
-        try:
-            result = verify.verify(exercise, timeout=constants.TEST_TIMEOUT_SECONDS)
-        except OSError:
-            result = None
-        if result is not None and result.passed:
+    results = scan_results(ordered, on_progress=_show_scan_progress)
+    console.raw("\r" + " " * 50 + "\r")
+
+    # 依題目順序更新，讓進度檔的 done 清單維持穩定的順序
+    for exercise in ordered:
+        if results[exercise.id]:
             state.mark_done(exercise.id)
         else:
             state.unmark_done(exercise.id)
-    console.raw("\r" + " " * 50 + "\r")
 
     for exercise in ordered:
         if not state.is_done(exercise.id):
             state.current = exercise.id
             break
     state.save()
+
+
+def scan_results(
+    exercises: list[Exercise],
+    on_progress: Callable[[int, int, Exercise], None] | None = None,
+) -> dict[str, bool]:
+    """檢查每一題目前是否通過，回傳 ``{練習 id: 是否通過}``，不改動進度。
+
+    沒改過的題目直接算未通過。其餘每題的檢查都是獨立的子行程、產物寫在
+    各自的題目資料夾，所以平行執行，避免題目一多時 ``run`` 啟動要等好幾十秒。
+    ``on_progress`` 只會在呼叫端的執行緒被呼叫（每完成一題一次）。
+    """
+    results = {exercise.id: False for exercise in exercises}
+    pending = [exercise for exercise in exercises if not is_unmodified(exercise)]
+    if not pending:
+        return results
+    workers = max(1, min(constants.SCAN_WORKERS, len(pending)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_passes, exercise): exercise for exercise in pending}
+        for index, future in enumerate(as_completed(futures), start=1):
+            exercise = futures[future]
+            results[exercise.id] = future.result()
+            if on_progress is not None:
+                on_progress(index, len(pending), exercise)
+    return results
+
+
+def _passes(exercise: Exercise) -> bool:
+    """掃描用：檢查一題，任何例外都當成未通過，不能讓一題的問題中斷整個掃描。"""
+    try:
+        return verify.verify(exercise, timeout=constants.TEST_TIMEOUT_SECONDS).passed
+    except Exception:  # noqa: BLE001 - 例如 expected.txt 不是 UTF-8 的 UnicodeDecodeError
+        return False
+
+
+def _show_scan_progress(index: int, total: int, exercise: Exercise) -> None:
+    console.raw(f"\r掃描進度中… {index}/{total} {exercise.id}  ")
 
 
 # ================================================================ 輔助

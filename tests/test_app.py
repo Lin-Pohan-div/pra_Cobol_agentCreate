@@ -106,3 +106,32 @@ class CliTest(unittest.TestCase):
             exercises_dir = os.path.join(root, "exercises")
             self.assertEqual(cli.main(["--dir", exercises_dir, "verify", "99_nope"]), 1)
             self.assertEqual(cli.main(["--dir", exercises_dir, "hint", "99_nope"]), 1)
+
+
+class ScanTest(unittest.TestCase):
+    def test_scan_results_survives_unexpected_errors(self):
+        from coblings import main, verify
+        from coblings.model import Exercise
+
+        exercises = [
+            Exercise(id=f"0{n}_x", name="x", directory=".", source=f"x{n}.cbl",
+                     checker=f"x{n}Test.cbl", order=n)
+            for n in (1, 2, 3)
+        ]
+
+        def fake_verify(exercise, timeout=None):
+            if exercise.id == "02_x":
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad")
+            return verify.Result(verify.STATUS_PASSED)
+
+        original_verify, original_unmodified = verify.verify, main.is_unmodified
+        verify.verify, main.is_unmodified = fake_verify, lambda exercise: exercise.id == "03_x"
+        seen: list[str] = []
+        try:
+            results = main.scan_results(
+                exercises, on_progress=lambda index, total, exercise: seen.append(exercise.id)
+            )
+        finally:
+            verify.verify, main.is_unmodified = original_verify, original_unmodified
+        self.assertEqual(results, {"01_x": True, "02_x": False, "03_x": False})
+        self.assertEqual(sorted(seen), ["01_x", "02_x"])  # 沒改過的題目不必檢查

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Coblings launcher for Linux/macOS (needs Python 3.11+, nothing else).
 # Messages stay ASCII-only so they render under any terminal.
-set -euo pipefail
+# No pipefail: it is not POSIX and older /bin/sh (dash) rejects it.
+set -eu
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PYTHONPATH="$ROOT/src"

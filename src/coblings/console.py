@@ -83,10 +83,11 @@ def _resolve_codec(name: str) -> str | None:
 
 
 def _windows_code_page() -> int | None:
-    """Windows 上的 ANSI 字碼頁（與 shell 解讀原生程式輸出的方式一致）。"""
+    """Windows 上主控台的輸出字碼頁（PowerShell / cmd 解讀原生程式輸出時使用）。"""
     try:
         kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-        return int(kernel32.GetACP())
+        code_page = int(kernel32.GetConsoleOutputCP())
+        return code_page or None
     except Exception:  # pragma: no cover - 非預期環境
         return None
 

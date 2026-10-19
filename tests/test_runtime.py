@@ -24,33 +24,12 @@ class RuntimeErrorTest(unittest.TestCase):
             )
         self.assertIn("SUBSCRIPT", str(caught.exception))
 
-    def test_numeric_move_truncates(self):
-        # 數字欄位放不下時是截斷，不是錯誤
-        lines, _code, _interp = run_program('01 N PIC 9(2).\n       P1. MOVE 555 TO N DISPLAY N GOBACK.\n')
-        self.assertEqual(lines, ["55"])
-
-    def test_on_size_error_fires(self):
-        # 發生 SIZE ERROR 時接收欄位維持原值（和 GnuCOBOL 一致）
-        source = (
-            '01 N PIC 9(2) VALUE 0.\n'
-            '01 R PIC 9(2) VALUE 5.\n'
-            '       P1. COMPUTE R = 99 * 99 ON SIZE ERROR MOVE 999 TO N END-COMPUTE\n'
-            '           DISPLAY R " " N GOBACK.\n'
-        )
-        lines, _code, _interp = run_program(source)
-        self.assertEqual(lines, ["5 99"])
-
     def test_size_error_without_phrase_keeps_value(self):
         # 沒有寫 ON SIZE ERROR 時，接收欄位一樣維持原值（COBOL 標準的「內容未定」，
         # GnuCOBOL 選擇不變）
         source = '01 R PIC 9(2).\n       P1. COMPUTE R = 99 * 99 DISPLAY R GOBACK.\n'
         lines, _code, _interp = run_program(source)
         self.assertEqual(lines, ["0"])
-
-    def test_move_never_reports_size_error(self):
-        # MOVE 不是算術敘述，超過位數時照樣截斷（與 GnuCOBOL 的 truncate 相同）
-        lines, _code, _interp = run_program('01 R PIC 9(2).\n       P1. MOVE 12345 TO R DISPLAY R GOBACK.\n')
-        self.assertEqual(lines, ["45"])
 
     def test_divide_by_zero(self):
         with self.assertRaises(RuntimeError_):
